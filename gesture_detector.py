@@ -21,8 +21,6 @@ class GestureDetector:
         """
         Run detection on a frame. Returns landmarks + handedness.
         """
-        # Flip for natural mirror effect
-        frame = cv2.flip(frame, 1)
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self.hands.process(rgb)
         hands_data = []
