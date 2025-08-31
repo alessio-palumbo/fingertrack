@@ -1,3 +1,5 @@
+import json
+
 import cv2
 
 from gesture_detector import GestureDetector  # assuming class is in gesture_detector.py
@@ -7,7 +9,9 @@ def main():
     cap = cv2.VideoCapture(0)
     detector = GestureDetector()
 
-    gesture_history = []
+    # Fingers change tracking -----
+    last_fingers = None
+    fingers_history = []
     history_size = 5
 
     while cap.isOpened():
@@ -21,14 +25,19 @@ def main():
         hands_data = detector.detect(mirrored_frame)
         for landmarks, hand_label in hands_data:
             fingers = detector.fingers_up(landmarks, hand_label)
-            gesture = detector.classify_gesture(fingers)
 
             # Smoothing / Debouncing
-            gesture_history.append(gesture)
-            if len(gesture_history) > history_size:
-                gesture_history.pop(0)
+            fingers_history.append(tuple(fingers))
+            if len(fingers_history) > history_size:
+                fingers_history.pop(0)
 
-            stable_gesture = max(set(gesture_history), key=gesture_history.count)
+            stable_fingers = max(set(fingers_history), key=fingers_history.count)
+            if stable_fingers != last_fingers:
+                # Print json fingers arroy for use by consumers.
+                print(json.dumps(stable_fingers), flush=True)
+                last_fingers = stable_fingers
+
+            stable_gesture = detector.classify_gesture(stable_fingers)
 
             # Draw landmarks
             detector.mp_draw.draw_landmarks(
