@@ -21,6 +21,9 @@ class BaseConsumer:
     def consume(self, event):
         raise NotImplementedError
 
+    def close(self):
+        pass
+
 
 class StdoutConsumer(BaseConsumer):
     """Default consumer that prints finger states as JSON to stdout."""
