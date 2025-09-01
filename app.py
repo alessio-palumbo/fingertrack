@@ -2,15 +2,18 @@ import json
 
 import cv2
 
-from gesture_detector import GestureDetector  # assuming class is in gesture_detector.py
+from consumer import get_consumer_from_args
+from fingers_detector import FingersDetector
 
 
 def main():
     cap = cv2.VideoCapture(0)
-    detector = GestureDetector()
+    detector = FingersDetector()
+    consumer = get_consumer_from_args()
 
-    # Fingers change tracking -----
+    # Fingers change tracking
     last_fingers = None
+    # Track fingers history for smoothing
     fingers_history = []
     history_size = 5
 
@@ -19,7 +22,7 @@ def main():
         if not ret:
             break
 
-        # Mirror frame
+        # Mirror frame for more natural video output.
         mirrored_frame = cv2.flip(frame, 1)
 
         hands_data = detector.detect(mirrored_frame)
@@ -33,8 +36,7 @@ def main():
 
             stable_fingers = max(set(fingers_history), key=fingers_history.count)
             if stable_fingers != last_fingers:
-                # Print json fingers arroy for use by consumers.
-                print(json.dumps(stable_fingers), flush=True)
+                consumer.consume(stable_fingers)
                 last_fingers = stable_fingers
 
             stable_gesture = detector.classify_gesture(stable_fingers)

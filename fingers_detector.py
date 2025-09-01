@@ -2,9 +2,19 @@ import cv2
 import mediapipe as mp
 
 
-class GestureDetector:
+class FingersDetector:
     """
-    GestureDetector detects a hands gesture
+    Detects finger states (extended or folded) from MediaPipe hand landmarks.
+
+    This class provides methods to:
+      - Detect which fingers are up for a given hand
+      - Classify a simple gesture from the finger states (optional, for visualization)
+      - Draw hand landmarks on frames for display
+
+    Attributes:
+        mp_hands: MediaPipe Hands solution reference
+        mp_draw: MediaPipe Drawing utilities reference
+        hands: The MediaPipe Hands instance used for detection
     """
 
     def __init__(self, max_hands=1, detection_conf=0.7, track_conf=0.7):
