@@ -51,13 +51,13 @@ class FingersDetector:
         fingers = []
         landmark = landmarks.landmark
 
-        # --- Thumb (x-axis check) ---
+        # Thumb (x-axis check)
         if hand_label == "Right":
             fingers.append(1 if landmark[4].x < landmark[3].x else 0)
         else:  # Left hand
             fingers.append(1 if landmark[4].x > landmark[3].x else 0)
 
-        # --- Other 4 fingers (y-axis check) ---
+        # Other 4 fingers (y-axis check)
         tip_ids = [8, 12, 16, 20]
         for tip_id in tip_ids:
             tip = landmark[tip_id]
@@ -65,6 +65,7 @@ class FingersDetector:
             mcp = landmark[tip_id - 3]
             wrist = landmark[0]
 
+            # Check both position of tip vs joint and relative distance to the writst.
             if tip.y < pip.y and pip.y < mcp.y and abs(tip.y - wrist.y) > 0.1:
                 fingers.append(1)
             else:

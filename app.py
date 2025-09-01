@@ -2,14 +2,14 @@ import json
 
 import cv2
 
-from consumer import get_consumer_from_args
+from consumer import FingerStateEvent, get_consumers_from_args
 from fingers_detector import FingersDetector
 
 
 def main():
     cap = cv2.VideoCapture(0)
     detector = FingersDetector()
-    consumer = get_consumer_from_args()
+    consumers = get_consumers_from_args(detector)
 
     # Fingers change tracking
     last_fingers = None
@@ -36,33 +36,15 @@ def main():
 
             stable_fingers = max(set(fingers_history), key=fingers_history.count)
             if stable_fingers != last_fingers:
-                consumer.consume(stable_fingers)
+                event = FingerStateEvent(stable_fingers, frame, landmarks, hand_label)
+                for consumer in consumers:
+                    consumer.consume(event)
                 last_fingers = stable_fingers
 
-            stable_gesture = detector.classify_gesture(stable_fingers)
-
-            # Draw landmarks
-            detector.mp_draw.draw_landmarks(
-                mirrored_frame, landmarks, detector.mp_hands.HAND_CONNECTIONS
-            )
-
-            # Display gesture
-            cv2.putText(
-                mirrored_frame,
-                f"{hand_label} - {stable_gesture}",
-                (10, 50),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (255, 0, 0),
-                2,
-            )
-
-        cv2.imshow("Gesture Detector", mirrored_frame)
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
-
     cap.release()
-    cv2.destroyAllWindows()
+    for consumer in consumers:
+        if hasattr(consumer, "close"):
+            consumer.close()
 
 
 if __name__ == "__main__":
