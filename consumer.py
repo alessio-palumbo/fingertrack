@@ -1,78 +1,74 @@
 import argparse
 import json
-from typing import Any, List, Protocol
+from typing import List
 
 import cv2
 import requests
 from mediapipe.python.solutions import drawing_utils as mp_draw
 from mediapipe.python.solutions.hands import HAND_CONNECTIONS
 
-from fingers_detector import FingersDetector
+from fingers_detector import FingersDetector, FingersStateEvent
 
 
-class FingerStateEvent:
-    def __init__(self, stable_fingers, frame=None, landmarks=None, hand_label=None):
-        self.stable_fingers = stable_fingers
-        self.frame = frame
-        self.landmarks = landmarks
-        self.hand_label = hand_label
+class BaseConsumer:
+    """Defines consumers common properties"""
+
+    @property
+    def always_consume(self) -> bool:
+        """Defines whether consuming frames with repeated data"""
+        return False
+
+    def consume(self, event):
+        raise NotImplementedError
 
 
-class FingersConsumer(Protocol):
-    """Defines an interface for consuming finger state outputs."""
-
-    def consume(self, data: FingerStateEvent) -> None: ...
-
-
-class StdoutConsumer:
+class StdoutConsumer(BaseConsumer):
     """Default consumer that prints finger states as JSON to stdout."""
 
-    def consume(self, data: FingerStateEvent) -> None:
-        print(json.dumps(data.stable_fingers), flush=True)
+    def consume(self, event: FingersStateEvent) -> None:
+        print(json.dumps(event.stable_fingers), flush=True)
 
 
-class HttpConsumer:
+class HttpConsumer(BaseConsumer):
     """HTTP consumer that POST finger states as JSON to the set URL."""
 
     def __init__(self, url: str):
         self.url = url
 
-    def consume(self, data: FingerStateEvent) -> None:
-        requests.post(self.url, json=data.stable_fingers)
+    def consume(self, event: FingersStateEvent) -> None:
+        requests.post(self.url, json=event.stable_fingers)
 
 
-class OpenCVWindowConsumer:
+class OpenCVWindowConsumer(BaseConsumer):
     """Consumer that displays hand landmarks and finger states in a window."""
 
-    def __init__(self, classify_fn=None, window_name="Gesture Detector"):
-        self.classify_fn = classify_fn
+    def __init__(self, window_name="Gesture Detector"):
         self.window_name = window_name
 
-    def consume(self, data: FingerStateEvent):
+    @property
+    def always_consume(self) -> bool:
+        return True
+
+    def consume(self, event: FingersStateEvent):
         """
         data: tuple (frame, landmarks, hand_label, stable_fingers)
         """
 
-        if data.landmarks:
-            mp_draw.draw_landmarks(data.frame, data.landmarks, HAND_CONNECTIONS)
+        if event.landmarks:
+            mp_draw.draw_landmarks(event.frame, event.landmarks, HAND_CONNECTIONS)
 
-        # Use classify_fn if provided or fallback.
-        stable_gesture = (
-            self.classify_fn(data.stable_fingers)
-            if self.classify_fn
-            else str(data.stable_fingers)
-        )
+        stable_gesture = FingersDetector.classify_gesture(event.stable_fingers)
 
         cv2.putText(
-            data.frame,
-            f"{data.hand_label} - {stable_gesture}",
+            event.frame,
+            f"{event.hand_label} - {stable_gesture}",
             (10, 50),
             cv2.FONT_HERSHEY_SIMPLEX,
             1,
             (255, 0, 0),
             2,
         )
-        cv2.imshow(self.window_name, data.frame)
+        cv2.imshow(self.window_name, event.frame)
         cv2.waitKey(1)
 
     def close(self):
@@ -80,7 +76,7 @@ class OpenCVWindowConsumer:
         cv2.destroyAllWindows()
 
 
-def get_consumers_from_args(detector: FingersDetector) -> List[FingersConsumer]:
+def get_consumers_from_args() -> List[BaseConsumer]:
     """Returns the consumers as defined in the args or the default"""
 
     parser = argparse.ArgumentParser()
@@ -98,7 +94,7 @@ def get_consumers_from_args(detector: FingersDetector) -> List[FingersConsumer]:
 
     consumers = []
     if args.show_window:
-        consumers.append(OpenCVWindowConsumer(classify_fn=detector.classify_gesture))
+        consumers.append(OpenCVWindowConsumer())
     if args.consumer == "http":
         consumers.append(HttpConsumer(args.url))
     else:

@@ -1,5 +1,15 @@
+from collections import deque
+
 import cv2
 import mediapipe as mp
+
+
+class FingersStateEvent:
+    def __init__(self, stable_fingers, frame=None, landmarks=None, hand_label=None):
+        self.stable_fingers = stable_fingers
+        self.frame = frame
+        self.landmarks = landmarks
+        self.hand_label = hand_label
 
 
 class FingersDetector:
@@ -17,7 +27,14 @@ class FingersDetector:
         hands: The MediaPipe Hands instance used for detection
     """
 
-    def __init__(self, max_hands=1, detection_conf=0.7, track_conf=0.7):
+    def __init__(
+        self,
+        max_hands=1,
+        detection_conf=0.7,
+        track_conf=0.7,
+        history_size=5,
+        consumers=None,
+    ):
         self.max_hands = max_hands
         self.mp_hands = mp.solutions.hands
         self.hands = self.mp_hands.Hands(
@@ -26,6 +43,10 @@ class FingersDetector:
             min_tracking_confidence=track_conf,
         )
         self.mp_draw = mp.solutions.drawing_utils
+        self.history_size = history_size
+        self.fingers_history = deque(maxlen=history_size)
+        self.last_fingers = None
+        self.consumers = consumers if consumers else []
 
     def detect(self, frame):
         """
@@ -42,6 +63,23 @@ class FingersDetector:
                 label = handedness.classification[0].label  # 'Left' or 'Right'
                 hands_data.append((landmarks, label))
         return hands_data
+
+    def process_hand(self, frame, landmarks, hand_label):
+        """
+        Process a single hand: smooth fingers and notify consumers.
+        """
+        fingers = self.fingers_up(landmarks, hand_label)
+        # Convert to tuple for immutability in deque/set
+        self.fingers_history.append(tuple(fingers))
+        # Compute stable fingers (most frequent in history)
+        stable_fingers = max(set(self.fingers_history), key=self.fingers_history.count)
+
+        event = FingersStateEvent(stable_fingers, frame, landmarks, hand_label)
+        for consumer in self.consumers:
+            if consumer.always_consume or stable_fingers != self.last_fingers:
+                consumer.consume(event)
+
+        self.last_fingers = stable_fingers
 
     def fingers_up(self, landmarks, hand_label):
         """
@@ -73,7 +111,8 @@ class FingersDetector:
 
         return fingers
 
-    def classify_gesture(self, fingers):
+    @staticmethod
+    def classify_gesture(fingers):
         """
         Map finger states to gesture name.
         Extend this dictionary for more gestures.
