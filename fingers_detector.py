@@ -1,15 +1,36 @@
 from collections import deque
+from dataclasses import dataclass, field
+from typing import Any, Literal
 
 import cv2
 import mediapipe as mp
+import numpy as np
+
+HandLabel = Literal["Left", "Right"]
 
 
+@dataclass(frozen=True)
+class HandState:
+    label: HandLabel
+    stable_fingers: tuple[int, int, int, int, int]
+    landmarks: object | None = None
+
+    def to_dict(self) -> dict:
+        """Return a JSON-serializable dictionary."""
+        return {
+            "label": self.label,
+            "stable_fingers": self.stable_fingers,
+        }
+
+
+@dataclass(frozen=True)
 class FingersStateEvent:
-    def __init__(self, stable_fingers, frame=None, landmarks=None, hand_label=None):
-        self.stable_fingers = stable_fingers
-        self.frame = frame
-        self.landmarks = landmarks
-        self.hand_label = hand_label
+    hands: tuple[HandState, ...]
+    frame: np.ndarray | None = None
+
+    def to_dict(self) -> dict:
+        """Return a JSON-serializable dictionary containing all hands."""
+        return {"hands": [hand.to_dict() for hand in self.hands]}
 
 
 class FingersDetector:
@@ -29,7 +50,7 @@ class FingersDetector:
 
     def __init__(
         self,
-        max_hands=1,
+        max_hands=2,
         detection_conf=0.7,
         track_conf=0.7,
         history_size=5,
@@ -44,8 +65,14 @@ class FingersDetector:
         )
         self.mp_draw = mp.solutions.drawing_utils
         self.history_size = history_size
-        self.fingers_history = deque(maxlen=history_size)
-        self.last_fingers = None
+        self.fingers_history: dict[HandLabel, deque] = {
+            "Left": deque(maxlen=history_size),
+            "Right": deque(maxlen=history_size),
+        }
+        self.last_fingers: dict[HandLabel, tuple[int, int, int, int, int] | None] = {
+            "Left": None,
+            "Right": None,
+        }
         self.consumers = consumers if consumers else []
 
     def detect(self, frame):
@@ -64,22 +91,41 @@ class FingersDetector:
                 hands_data.append((landmarks, label))
         return hands_data
 
-    def process_hand(self, frame, landmarks, hand_label):
+    def process_hand(self, landmarks, hand_label):
         """
         Process a single hand: smooth fingers and notify consumers.
         """
         fingers = self.fingers_up(landmarks, hand_label)
-        # Convert to tuple for immutability in deque/set
-        self.fingers_history.append(tuple(fingers))
+        self.fingers_history[hand_label].append(fingers)
         # Compute stable fingers (most frequent in history)
-        stable_fingers = max(set(self.fingers_history), key=self.fingers_history.count)
+        stable_fingers = max(
+            set(self.fingers_history[hand_label]),
+            key=self.fingers_history[hand_label].count,
+        )
+        return stable_fingers
 
-        event = FingersStateEvent(stable_fingers, frame, landmarks, hand_label)
+    def process_hands(self, frame, hands_data):
+        """
+        Process multiple hands and notify consumers.
+        """
+        hand_states = []
+        any_change = False
+        for landmarks, hand_label in hands_data:
+            stable_fingers = self.process_hand(landmarks, hand_label)
+            hand_states.append(
+                HandState(
+                    label=hand_label, stable_fingers=stable_fingers, landmarks=landmarks
+                )
+            )
+
+            if self.last_fingers.get(hand_label) != stable_fingers:
+                any_change = True
+            self.last_fingers[hand_label] = stable_fingers
+
+        event = FingersStateEvent(hands=tuple(hand_states), frame=frame)
         for consumer in self.consumers:
-            if consumer.always_consume or stable_fingers != self.last_fingers:
+            if consumer.always_consume or any_change:
                 consumer.consume(event)
-
-        self.last_fingers = stable_fingers
 
     def fingers_up(self, landmarks, hand_label):
         """
@@ -109,7 +155,7 @@ class FingersDetector:
             else:
                 fingers.append(0)
 
-        return fingers
+        return tuple(fingers)
 
     @staticmethod
     def classify_gesture(fingers):

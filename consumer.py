@@ -18,7 +18,7 @@ class BaseConsumer:
         """Defines whether consuming frames with repeated data"""
         return False
 
-    def consume(self, event):
+    def consume(self, _: FingersStateEvent):
         raise NotImplementedError
 
     def close(self):
@@ -29,7 +29,7 @@ class StdoutConsumer(BaseConsumer):
     """Default consumer that prints finger states as JSON to stdout."""
 
     def consume(self, event: FingersStateEvent) -> None:
-        print(json.dumps(event.stable_fingers), flush=True)
+        print(json.dumps(event.to_dict()), flush=True)
 
 
 class HttpConsumer(BaseConsumer):
@@ -39,7 +39,10 @@ class HttpConsumer(BaseConsumer):
         self.url = url
 
     def consume(self, event: FingersStateEvent) -> None:
-        requests.post(self.url, json=event.stable_fingers)
+        try:
+            requests.post(self.url, json=event.to_dict(), timeout=0.5)
+        except requests.RequestException as e:
+            print(f"Failed to send event: {e}")
 
 
 class OpenCVWindowConsumer(BaseConsumer):
@@ -53,25 +56,28 @@ class OpenCVWindowConsumer(BaseConsumer):
         return True
 
     def consume(self, event: FingersStateEvent):
-        """
-        data: tuple (frame, landmarks, hand_label, stable_fingers)
-        """
+        frame = event.frame
+        if frame is None:
+            return
 
-        if event.landmarks:
-            mp_draw.draw_landmarks(event.frame, event.landmarks, HAND_CONNECTIONS)
+        for i, hand in enumerate(event.hands):
+            if hand.landmarks:
+                mp_draw.draw_landmarks(frame, hand.landmarks, HAND_CONNECTIONS)
 
-        stable_gesture = FingersDetector.classify_gesture(event.stable_fingers)
+            stable_gesture = FingersDetector.classify_gesture(hand.stable_fingers)
 
-        cv2.putText(
-            event.frame,
-            f"{event.hand_label} - {stable_gesture}",
-            (10, 50),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (255, 0, 0),
-            2,
-        )
-        cv2.imshow(self.window_name, event.frame)
+            y_pos = 50 + i * 40
+            cv2.putText(
+                frame,
+                f"{hand.label} - {stable_gesture}",
+                (10, y_pos),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (255, 0, 0),
+                2,
+            )
+
+        cv2.imshow(self.window_name, frame)
         cv2.waitKey(1)
 
     def close(self):
