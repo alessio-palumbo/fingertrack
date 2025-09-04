@@ -2,7 +2,6 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-import cv2
 import mediapipe as mp
 import numpy as np
 
@@ -35,35 +34,19 @@ class FingersStateEvent:
 
 class FingersDetector:
     """
-    Detects finger states (extended or folded) from MediaPipe hand landmarks.
+    Analyzes hand landmarks to determine finger states (extended or folded).
 
-    This class provides methods to:
-      - Detect which fingers are up for a given hand
-      - Classify a simple gesture from the finger states (optional, for visualization)
-      - Draw hand landmarks on frames for display
-
-    Attributes:
-        mp_hands: MediaPipe Hands solution reference
-        mp_draw: MediaPipe Drawing utilities reference
-        hands: The MediaPipe Hands instance used for detection
+    This class consumes hand landmark data (e.g., from HandTracker) and provides:
+      - Detection of which fingers are up for a given hand
+      - Classification of simple gestures (e.g., Open, Fist, Point) based on finger states
+      - Processing multiple hands to generate FingersStateEvent objects for consumers
     """
 
     def __init__(
         self,
-        max_hands=2,
-        detection_conf=0.7,
-        track_conf=0.7,
         history_size=5,
         consumers=None,
     ):
-        self.max_hands = max_hands
-        self.mp_hands = mp.solutions.hands
-        self.hands = self.mp_hands.Hands(
-            max_num_hands=max_hands,
-            min_detection_confidence=detection_conf,
-            min_tracking_confidence=track_conf,
-        )
-        self.mp_draw = mp.solutions.drawing_utils
         self.history_size = history_size
         self.fingers_history: dict[HandLabel, deque] = {
             "Left": deque(maxlen=history_size),
@@ -74,22 +57,6 @@ class FingersDetector:
             "Right": None,
         }
         self.consumers = consumers if consumers else []
-
-    def detect(self, frame):
-        """
-        Run detection on a frame. Returns landmarks + handedness.
-        """
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = self.hands.process(rgb)
-        hands_data = []
-
-        if results.multi_hand_landmarks and results.multi_handedness:
-            for landmarks, handedness in zip(
-                results.multi_hand_landmarks, results.multi_handedness
-            ):
-                label = handedness.classification[0].label  # 'Left' or 'Right'
-                hands_data.append((landmarks, label))
-        return hands_data
 
     def process_hand(self, landmarks, hand_label):
         """
