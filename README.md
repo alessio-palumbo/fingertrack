@@ -34,6 +34,25 @@ python app.py --show-window
 - --show-window enables the live OpenCV feed.
 - The finger states are printed to stdout by default.
 
+Example output
+
+```json
+{
+  "hands": [
+    {
+      "label": "left",
+      "fingers": [1, 0, 0, 0, 0],
+      "gesture": null
+    },
+    {
+      "label": "right",
+      "fingers": [1, 1, 1, 1, 1],
+      "gesture": "swipe_left"
+    }
+  ]
+}
+```
+
 ## Docker
 
 You can run FingerTrack either with a live webcam (Linux only) or with a video file (all platforms).

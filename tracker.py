@@ -1,5 +1,9 @@
+from typing import Literal
+
 import cv2
 import mediapipe as mp
+
+HandLabel = Literal["Left", "Right"]
 
 
 class HandTracker:
@@ -30,7 +34,7 @@ class HandTracker:
         )
         self.mp_draw = mp.solutions.drawing_utils
 
-    def detect(self, frame) -> list[tuple[object, str]]:
+    def detect(self, frame) -> list[tuple[object, HandLabel]]:
         """
         Run hand detection on a single video frame.
 

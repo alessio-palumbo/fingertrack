@@ -1,17 +1,19 @@
 import signal
+import sys
 
 import cv2
 
 from consumer import get_consumers_from_args
-from fingers_detector import FingersDetector
-from hand_tracker import HandTracker
+from hand import HandEngine
+
+# Silently exit when pipe is closed.
+signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 
 def main():
     cap = cv2.VideoCapture(0)
     consumers = get_consumers_from_args()
-    tracker = HandTracker()
-    detector = FingersDetector(consumers=consumers)
+    hand_engine = HandEngine(consumers=consumers)
 
     running = True
 
@@ -32,13 +34,12 @@ def main():
 
             # Mirror frame for more natural video output.
             mirrored_frame = cv2.flip(frame, 1)
-            hands_data = tracker.detect(mirrored_frame)
-            detector.process_hands(mirrored_frame, hands_data)
+            hand_engine.process_frame(mirrored_frame)
 
     finally:
         cap.release()
-        for consumer in consumers:
-            consumer.close()
+        cv2.destroyAllWindows()
+        sys.exit(0)
 
 
 if __name__ == "__main__":

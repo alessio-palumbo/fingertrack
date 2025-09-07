@@ -7,7 +7,7 @@ import requests
 from mediapipe.python.solutions import drawing_utils as mp_draw
 from mediapipe.python.solutions.hands import HAND_CONNECTIONS
 
-from fingers_detector import FingersDetector, FingersStateEvent
+from hand import HandEvent
 
 
 class BaseConsumer:
@@ -18,17 +18,14 @@ class BaseConsumer:
         """Defines whether consuming frames with repeated data"""
         return False
 
-    def consume(self, _: FingersStateEvent):
+    def consume(self, _: HandEvent):
         raise NotImplementedError
-
-    def close(self):
-        pass
 
 
 class StdoutConsumer(BaseConsumer):
     """Default consumer that prints finger states as JSON to stdout."""
 
-    def consume(self, event: FingersStateEvent) -> None:
+    def consume(self, event: HandEvent) -> None:
         print(json.dumps(event.to_dict()), flush=True)
 
 
@@ -38,7 +35,7 @@ class HttpConsumer(BaseConsumer):
     def __init__(self, url: str):
         self.url = url
 
-    def consume(self, event: FingersStateEvent) -> None:
+    def consume(self, event: HandEvent) -> None:
         try:
             requests.post(self.url, json=event.to_dict(), timeout=0.5)
         except requests.RequestException as e:
@@ -55,7 +52,7 @@ class OpenCVWindowConsumer(BaseConsumer):
     def always_consume(self) -> bool:
         return True
 
-    def consume(self, event: FingersStateEvent):
+    def consume(self, event: HandEvent):
         frame = event.frame
         if frame is None:
             return
@@ -64,25 +61,40 @@ class OpenCVWindowConsumer(BaseConsumer):
             if hand.landmarks:
                 mp_draw.draw_landmarks(frame, hand.landmarks, HAND_CONNECTIONS)
 
-            stable_gesture = FingersDetector.classify_gesture(hand.stable_fingers)
+            stable_gesture = self.classify_gesture(hand.stable_fingers)
 
             y_pos = 50 + i * 40
             cv2.putText(
                 frame,
-                f"{hand.label} - {stable_gesture}",
+                f"{hand.label}: {stable_gesture} - Gesture: {hand.gesture}",
                 (10, y_pos),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 1,
-                (255, 0, 0),
+                (255, 0, 0) if hand.label == "Left" else (0, 255, 0),
                 2,
             )
 
         cv2.imshow(self.window_name, frame)
         cv2.waitKey(1)
 
-    def close(self):
-        """Close any opened window"""
-        cv2.destroyAllWindows()
+    def classify_gesture(self, fingers):
+        """
+        Map finger states to gesture name.
+        Extend this dictionary for more gestures.
+        """
+        gesture_map = {
+            (0, 1, 0, 0, 0): "Pointing (Index)",
+            (0, 1, 1, 0, 0): "Victory Sign",
+            (0, 1, 1, 1, 0): "Three-Finger Salute",
+            (0, 1, 0, 0, 1): "Horns",
+            (1, 1, 0, 0, 1): "I love you",
+            (0, 0, 1, 0, 0): "Rude!!!",
+            (0, 0, 0, 0, 0): "Fist",
+            (1, 0, 0, 0, 0): "Thumbs Up",
+            (1, 1, 1, 1, 1): "Open Palm",
+            (1, 0, 0, 0, 1): "Shaka Sign",
+        }
+        return gesture_map.get(tuple(fingers), f"{sum(fingers)} fingers")
 
 
 def get_consumers_from_args() -> List[BaseConsumer]:
