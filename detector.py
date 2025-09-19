@@ -8,27 +8,28 @@ class FingersDetector:
     """
     Analyzes hand landmarks to determine finger states (extended or folded).
 
-    This class consumes hand landmark data (e.g., from HandTracker) and provides:
-      - Detection of which fingers are up for a given hand
-      - Classification of simple gestures (e.g., Open, Fist, Point) based on finger states
+    This class consumes hand landmark data (e.g., from HandTracker) and provides
+    detection of which fingers are up for a given hand
     """
 
     def __init__(
         self,
-        history_size=5,
+        buffer_size=5,
     ):
-        self.history_size = history_size
+        self.buffer_size = buffer_size
         self.history: dict[HandLabel, deque] = {
-            "Left": deque(maxlen=history_size),
-            "Right": deque(maxlen=history_size),
+            "Left": deque(maxlen=buffer_size),
+            "Right": deque(maxlen=buffer_size),
         }
 
     def process_hand(self, landmarks, hand_label) -> tuple[int, int, int, int, int]:
         """
-        Process a single hand, smooth fingers.
+        Process a single hand and return stable fingers positions.
         """
+
         fingers = self.fingers_up(landmarks, hand_label)
         self.history[hand_label].append(fingers)
+
         # Compute stable fingers (most frequent in history)
         stable_fingers = max(
             set(self.history[hand_label]),
@@ -41,6 +42,7 @@ class FingersDetector:
         Determine which fingers are up.
         Returns list: [thumb, index, middle, ring, pinky]
         """
+
         fingers = []
         landmark = landmarks.landmark
 
@@ -75,29 +77,40 @@ class GestureDetector:
 class SwipeGestureDetector(GestureDetector):
     def __init__(self, buffer_size=5, threshold=0.1):
         """
-        Detect a swipe gesture for movement normalized to [0,1], with threshold set to a 10% horizontal swipe:
+        Detect a swipe gesture for movement normalized to [0,1] when past the threshold
         """
+
+        self.buffer_size = buffer_size
+        self.threshold = threshold
         self.history: dict[HandLabel, deque] = {
             "Left": deque(maxlen=buffer_size),
             "Right": deque(maxlen=buffer_size),
         }
-        self.buffer_size = buffer_size
-        self.threshold = threshold
 
     def process_hand(self, landmarks, hand_label) -> str | None:
         """
-        Process a single hand: smooth gestures.
+        Process a single hand gesture by comparing wrist offsets
         """
+
         wrist = landmarks.landmark[0]
-        self.history[hand_label].append(wrist.x)
+        self.history[hand_label].append((wrist.x, wrist.y))
 
         if len(self.history[hand_label]) < self.buffer_size:
             return None
 
-        dx = self.history[hand_label][-1] - self.history[hand_label][0]
+        x0, y0 = self.history[hand_label][0]
+        x1, y1 = self.history[hand_label][-1]
 
-        if abs(dx) > self.threshold:
-            gesture = "swipe_right" if dx > 0 else "swipe_left"
-            return gesture
+        dx = x1 - x0
+        dy = y1 - y0
+
+        # Horizontal dominates
+        if abs(dx) > abs(dy):
+            if abs(dx) > self.threshold:
+                return "swipe_right" if dx > 0 else "swipe_left"
+        else:
+            # Vertical dominates
+            if abs(dy) > self.threshold:
+                return "swipe_down" if dy > 0 else "swipe_up"
 
         return None
