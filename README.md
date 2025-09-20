@@ -53,6 +53,57 @@ Example output
 }
 ```
 
+## Command-Line Arguments
+
+Fingertrack supports a few runtime options to tweak gesture detection and hand processing behavior:
+
+**--frame-skip N**
+
+- Description: Only process every Nth frame from the camera feed.
+- Default: 1 (process every frame)
+- Pros: Reduces CPU usage on slower machines.
+- Cons: Skipping too many frames may make gestures less responsive.
+
+**--buffer-size N**
+
+- Description: Number of historical positions tracked per hand for smoothing gestures.
+- Default: 5
+- Pros: Larger values improve stability and reduce false positives.
+- Cons: Too large may delay gesture recognition slightly.
+
+**--gesture-threshold T**
+
+- Description: Minimum normalized movement required to recognize a swipe.
+- Default: 0.1
+- Pros: Increasing reduces accidental gestures caused by small jitters.
+- Cons: Setting too high may make gestures harder to trigger.
+
+**--consumer [stdout|http]**
+
+- Description: Select which output consumer to use.
+- Default: `stdout`
+- Options:
+  - `stdout`: Print gesture events as JSON to the terminal.
+  - `http`: Send gesture events to an HTTP endpoint.
+
+**--url URL**
+
+- Description: URL for the HTTP consumer when `--consumer http` is selected.
+- Required if `--consumer http` is used.
+
+**--show-window**
+
+- Description: Display the camera feed in an OpenCV window.
+- Default: Disabled
+- Pros: Useful for debugging and visual verification of hand/gesture detection.
+- Cons: Consumes additional CPU/GPU and may be distracting in production.
+
+### Usage Tip:
+
+- On a fast machine, you can reduce frame-skip to 1 for maximum responsiveness.
+- For smoother gesture detection in a noisy environment, increase buffer-size slightly.
+- Adjust threshold based on how sensitive you want swipes to be; balance responsiveness vs accidental triggers.
+
 ## Docker
 
 You can run FingerTrack either with a live webcam (Linux only) or with a video file (all platforms).

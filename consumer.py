@@ -1,13 +1,11 @@
-import argparse
 import json
-from typing import List
 
 import cv2
 import requests
 from mediapipe.python.solutions import drawing_utils as mp_draw
 from mediapipe.python.solutions.hands import HAND_CONNECTIONS
 
-from hand import HandEvent
+from event import HandEvent
 
 
 class BaseConsumer:
@@ -95,29 +93,3 @@ class OpenCVWindowConsumer(BaseConsumer):
             (1, 0, 0, 0, 1): "Shaka Sign",
         }
         return gesture_map.get(tuple(fingers), f"{sum(fingers)} fingers")
-
-
-def get_consumers_from_args() -> List[BaseConsumer]:
-    """Returns the consumers as defined in the args or the default"""
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--consumer",
-        choices=["stdout", "http"],
-        default="stdout",
-        help="Select output consumer (default: stdout)",
-    )
-    parser.add_argument("--url", help="URL for http consumer")
-    parser.add_argument(
-        "--show-window", action="store_true", help="Display OpenCV feed"
-    )
-    args = parser.parse_args()
-
-    consumers = []
-    if args.show_window:
-        consumers.append(OpenCVWindowConsumer())
-    if args.consumer == "http":
-        consumers.append(HttpConsumer(args.url))
-    else:
-        consumers.append(StdoutConsumer())
-    return consumers

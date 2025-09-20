@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
-import numpy as np
-
+from consumer import BaseConsumer
 from detector import FingersDetector, SwipeGestureDetector
+from event import HandEvent, HandState
 from tracker import HandLabel, HandTracker
 
 
@@ -10,39 +10,6 @@ from tracker import HandLabel, HandTracker
 class Hand:
     stable_fingers: tuple[int, int, int, int, int]
     gesture: str | None
-
-
-@dataclass(frozen=True)
-class HandState:
-    label: HandLabel
-    stable_fingers: tuple[int, int, int, int, int]
-    gesture: str | None
-    landmarks: object | None = None
-
-    def to_dict(self) -> dict:
-        """Return a JSON-serializable dictionary."""
-        return {
-            "label": self.label.lower(),
-            "fingers": self.stable_fingers,
-            "gesture": self.gesture,
-        }
-
-
-@dataclass
-class HandEvent:
-    """
-    Unified event: contains finger states and/or gestures
-    detected in the same frame.
-    """
-
-    hands: list[HandState]
-    frame: np.ndarray | None = None  # OpenCV frame
-
-    def to_dict(self) -> dict:
-        """Return a JSON-serializable dictionary containing and event"""
-        return {
-            "hands": [hand.to_dict() for hand in self.hands],
-        }
 
 
 class HandEngine:
@@ -56,11 +23,23 @@ class HandEngine:
       - Dispatch events to registered consumers
     """
 
-    def __init__(self, consumers=None):
+    def __init__(
+        self,
+        buffer_size: int = 5,
+        frame_skip: int = 1,
+        consumers: list[BaseConsumer] | None = None,
+        gesture_threshold: float = 0.1,
+    ):
+        self.buffer_size = buffer_size
+        self.gesture_threshold = gesture_threshold
+        self.frame_skip = frame_skip
         self.hand_tracker = HandTracker()
-        self.fingers_detector = FingersDetector()
-        self.gesture_detector = SwipeGestureDetector()
+        self.fingers_detector = FingersDetector(buffer_size=buffer_size)
+        self.gesture_detector = SwipeGestureDetector(
+            buffer_size=buffer_size, threshold=gesture_threshold
+        )
         self.consumers = consumers or []
+        self.frame_mod = 0
         self.last_hand: dict[HandLabel, Hand | None] = {
             "Left": None,
             "Right": None,
@@ -71,6 +50,11 @@ class HandEngine:
         Process a video frame: detect hands, analyze fingers & gestures,
         and notify consumers with the results.
         """
+
+        self.frame_mod = (self.frame_mod + 1) % self.frame_skip
+        if self.frame_mod != 0:
+            return
+
         hands_data = self.hand_tracker.detect(frame)
         if not hands_data:
             return
