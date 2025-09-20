@@ -7,8 +7,9 @@ import cv2
 from consumer import BaseConsumer, HttpConsumer, OpenCVWindowConsumer, StdoutConsumer
 from hand import HandEngine
 
-# Silently exit when pipe is closed.
-signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+# Ignore SIGPIPE on Unix (not available on Windows)
+if hasattr(signal, "SIGPIPE"):
+    signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
 
 def parse_args() -> argparse.Namespace:
@@ -99,7 +100,11 @@ def main():
     # Signal handler to stop gracefully
     def stop_gracefully(signum, _):
         nonlocal running
-        print(f"\nSignal {signum} received. Exiting gracefully...")
+        try:
+            print(f"\nSignal {signum} received. Exiting gracefully...")
+        except BrokenPipeError:
+            # stdout/stderr already closed, just continue shutdown
+            pass
         running = False
 
     signal.signal(signal.SIGINT, stop_gracefully)
@@ -114,6 +119,10 @@ def main():
             # Mirror frame for more natural video output.
             mirrored_frame = cv2.flip(frame, 1)
             hand_engine.process_frame(mirrored_frame)
+
+    except BrokenPipeError:
+        # Handle case where the stdout pipe is closed early
+        running = False
 
     finally:
         cap.release()
