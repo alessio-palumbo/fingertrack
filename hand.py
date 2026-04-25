@@ -56,8 +56,6 @@ class HandEngine:
             return
 
         hands_data = self.hand_tracker.detect(frame)
-        if not hands_data:
-            return
 
         any_change = False
         hand_event = HandEvent(
