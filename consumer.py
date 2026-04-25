@@ -1,6 +1,8 @@
 import json
+from enum import Enum
 
 import cv2
+import numpy as np
 import requests
 from mediapipe.python.solutions import drawing_utils as mp_draw
 from mediapipe.python.solutions.hands import HAND_CONNECTIONS
@@ -40,11 +42,25 @@ class HttpConsumer(BaseConsumer):
             print(f"Failed to send event: {e}")
 
 
+class PreviewMode(Enum):
+    """
+    Controls how the OpenCV preview renders hand tracking output.
+    FULL:
+        Shows the original camera frame with MediaPipe landmarks and overlays.
+    LANDMARKS:
+        Renders only the hand skeleton on a black background (no camera feed).
+    """
+
+    FULL = "full"
+    LANDMARKS = "landmarks"
+
+
 class OpenCVWindowConsumer(BaseConsumer):
     """Consumer that displays hand landmarks and finger states in a window."""
 
-    def __init__(self, window_name="Gesture Detector"):
+    def __init__(self, window_name="Gesture Detector", mode=PreviewMode.FULL):
         self.window_name = window_name
+        self.mode = mode
 
     @property
     def always_consume(self) -> bool:
@@ -54,6 +70,10 @@ class OpenCVWindowConsumer(BaseConsumer):
         frame = event.frame
         if frame is None:
             return
+
+        if self.mode == PreviewMode.LANDMARKS:
+            height, width, _ = event.frame.shape
+            frame = np.zeros((height, width, 3), dtype=np.uint8)
 
         for i, hand in enumerate(event.hands):
             if hand.landmarks:

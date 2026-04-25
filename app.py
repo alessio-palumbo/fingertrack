@@ -4,7 +4,13 @@ import sys
 
 import cv2
 
-from consumer import BaseConsumer, HttpConsumer, OpenCVWindowConsumer, StdoutConsumer
+from consumer import (
+    BaseConsumer,
+    HttpConsumer,
+    OpenCVWindowConsumer,
+    PreviewMode,
+    StdoutConsumer,
+)
 from hand import HandEngine
 
 # Ignore SIGPIPE on Unix (not available on Windows)
@@ -26,7 +32,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--url", help="URL for http consumer")
     parser.add_argument(
-        "--show-window", action="store_true", help="Display OpenCV feed"
+        "--preview-mode",
+        choices=["full", "landmarks"],
+        help="Enabled OpenCV preview mode",
     )
 
     # --- HandEngine args (optional, only if HandEngine wants to parse CLI) ---
@@ -51,8 +59,8 @@ def get_consumers(args: argparse.Namespace) -> list[BaseConsumer]:
     """Create consumer instances based on parsed args."""
 
     consumers = []
-    if args.show_window:
-        consumers.append(OpenCVWindowConsumer())
+    if (mode := args.preview_mode) is not None:
+        consumers.append(OpenCVWindowConsumer(mode=PreviewMode(mode)))
     if args.consumer == "http":
         consumers.append(HttpConsumer(args.url))
     else:
@@ -71,17 +79,17 @@ def main():
     - Dispatches events to one or more consumers, such as:
         - StdoutConsumer: logs events to console
         - HttpConsumer: sends events to a remote endpoint
-        - OpenCVWindowConsumer: visualizes the camera feed in a window
+        - OpenCVWindowConsumer: displays real-time hand tracking preview
     - Supports configurable options:
         - --consumer: type of consumer to use
         - --url: URL for HTTP consumer
-        - --show-window: display live camera feed
+        - --preview-mode: display live camera feed (full camera or landmarks-only mode)
         - --frame-skip: number of frames to skip between processing
         - --buffer-size: number of frames to buffer for detection smoothing
         - --gesture-threshold: minimum movement required to detect a gesture
 
     Example usage:
-        python main.py --consumer stdout --show-window --gesture-buffer 5
+        python main.py --consumer stdout --preview-mode full --gesture-buffer 5
 
     Raises:
         SystemExit: if required resources (camera, config, etc.) are unavailable.

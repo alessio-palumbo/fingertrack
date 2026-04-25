@@ -28,10 +28,10 @@ cd fingertrack
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python app.py --show-window
+python app.py --preview-mode full
 ```
 
-- --show-window enables the live OpenCV feed.
+- --preview-mode enables the live OpenCV feed.
 - The finger states are printed to stdout by default.
 
 Example output
@@ -91,12 +91,15 @@ Fingertrack supports a few runtime options to tweak gesture detection and hand p
 - Description: URL for the HTTP consumer when `--consumer http` is selected.
 - Required if `--consumer http` is used.
 
-**--show-window**
+**--preview-mode**
 
-- Description: Display the camera feed in an OpenCV window.
+- Description: Controls the OpenCV hand-tracking preview window.
+- Options:
+  - `full`: Shows the camera feed with hand landmarks and overlays.
+  - `landmarks`: Shows only hand skeletons on a black background.
 - Default: Disabled
 - Pros: Useful for debugging and visual verification of hand/gesture detection.
-- Cons: Consumes additional CPU/GPU and may be distracting in production.
+- Cons: Consumes additional CPU/GPU and is not intended for production use.
 
 ### Usage Tip:
 
