@@ -75,22 +75,17 @@ class OpenCVWindowConsumer(BaseConsumer):
             height, width, _ = event.frame.shape
             frame = np.zeros((height, width, 3), dtype=np.uint8)
 
-        for i, hand in enumerate(event.hands):
-            if hand.landmarks:
-                mp_draw.draw_landmarks(frame, hand.landmarks, HAND_CONNECTIONS)
+        if not event.hands:
+            self._draw_text(frame, "No hands detected", center=True)
+        else:
+            for i, hand in enumerate(event.hands):
+                if hand.landmarks:
+                    mp_draw.draw_landmarks(frame, hand.landmarks, HAND_CONNECTIONS)
 
-            stable_gesture = self.classify_gesture(hand.stable_fingers)
+                stable_gesture = self.classify_gesture(hand.stable_fingers)
+                text = f"{hand.label}: {stable_gesture} - Gesture: {hand.gesture}"
 
-            y_pos = 50 + i * 40
-            cv2.putText(
-                frame,
-                f"{hand.label}: {stable_gesture} - Gesture: {hand.gesture}",
-                (10, y_pos),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (255, 0, 0) if hand.label == "Left" else (0, 255, 0),
-                2,
-            )
+                self._draw_text(frame, text, (10, 50 + i * 40))
 
         cv2.imshow(self.window_name, frame)
         cv2.waitKey(1)
@@ -113,3 +108,48 @@ class OpenCVWindowConsumer(BaseConsumer):
             (1, 0, 0, 0, 1): "Shaka Sign",
         }
         return gesture_map.get(tuple(fingers), f"{sum(fingers)} fingers")
+
+    def _draw_text(
+        self,
+        frame,
+        text: str,
+        position: tuple[int, int] | None = None,
+        center: bool = False,
+        color: tuple[int, int, int] = (255, 255, 255),
+        scale: float = 1.0,
+        thickness: int = 2,
+    ) -> None:
+        """
+        Draw text on the given frame with optional positioning or centering.
+
+        Args:
+            frame (np.ndarray): Image to draw on.
+            text (str): Text to render.
+            position (tuple[int, int] | None): Top-left position (x, y). Ignored if center=True.
+            center (bool): If True, text is centered on the frame.
+            color (tuple[int, int, int]): Text color in BGR.
+            scale (float): Font scale.
+            thickness (int): Text thickness.
+        """
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        h, w, _ = frame.shape
+
+        text_size, _ = cv2.getTextSize(text, font, scale, thickness)
+        text_w, text_h = text_size
+
+        if center:
+            x = (w - text_w) // 2
+            y = (h + text_h) // 2
+        else:
+            x, y = position or (10, 30)
+
+        cv2.putText(
+            frame,
+            text,
+            (x, y),
+            font,
+            scale,
+            color,
+            thickness,
+            cv2.LINE_AA,
+        )
