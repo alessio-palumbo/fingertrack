@@ -65,12 +65,14 @@ class HandEngine:
 
         for landmarks, hand_label in hands_data:
             stable_fingers = self.fingers_detector.process_hand(landmarks, hand_label)
+            pointer = self.fingers_detector.resolve_pointer(landmarks, stable_fingers)
             gesture = self.gesture_detector.process_hand(landmarks, hand_label)
 
             hand_event.hands.append(
                 HandState(
                     label=hand_label,
                     stable_fingers=stable_fingers,
+                    pointer=pointer,
                     gesture=gesture,
                     landmarks=landmarks,
                 )
