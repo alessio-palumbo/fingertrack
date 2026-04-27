@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from consumer import BaseConsumer
 from detector import FingersDetector, SwipeGestureDetector
+from estimator import MotionEstimator
 from event import HandEvent, HandState
 from tracker import HandLabel, HandTracker
 
@@ -38,6 +39,9 @@ class HandEngine:
         self.gesture_detector = SwipeGestureDetector(
             buffer_size=buffer_size, threshold=gesture_threshold
         )
+        self.motion_estimator = MotionEstimator(
+            buffer_size=buffer_size,
+        )
         self.consumers = consumers or []
         self.frame_mod = 0
         self.last_hand: dict[HandLabel, Hand | None] = {
@@ -67,6 +71,7 @@ class HandEngine:
             stable_fingers = self.fingers_detector.process_hand(landmarks, hand_label)
             pointer = self.fingers_detector.resolve_pointer(landmarks, stable_fingers)
             gesture = self.gesture_detector.process_hand(landmarks, hand_label)
+            motion = self.motion_estimator.update(hand_label, pointer)
 
             hand_event.hands.append(
                 HandState(
@@ -74,6 +79,7 @@ class HandEngine:
                     stable_fingers=stable_fingers,
                     pointer=pointer,
                     gesture=gesture,
+                    motion=motion,
                     landmarks=landmarks,
                 )
             )

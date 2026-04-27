@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from detector import Pointer
+from estimator import Motion
 from tracker import HandLabel
 
 
@@ -12,6 +13,7 @@ class HandState:
     stable_fingers: tuple[int, int, int, int, int]
     pointer: Pointer | None
     gesture: str | None
+    motion: Motion | None
     landmarks: object | None = None
 
     def to_dict(self) -> dict:
@@ -21,6 +23,7 @@ class HandState:
             "fingers": self.stable_fingers,
             "pointer": self.pointer.to_dict() if self.pointer else None,
             "gesture": self.gesture,
+            "motion": self.motion.to_dict() if self.motion else None,
         }
 
 
