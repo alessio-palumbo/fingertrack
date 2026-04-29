@@ -42,11 +42,13 @@ Example output
     {
       "label": "left",
       "fingers": [1, 0, 0, 0, 0],
+      "pointer": null,
       "gesture": null
     },
     {
       "label": "right",
       "fingers": [1, 1, 1, 1, 1],
+      "pointer": { "x": 0.6839850544929504, "y": 0.8850594758987427 },
       "gesture": "swipe_left"
     }
   ]
@@ -70,13 +72,6 @@ Fingertrack supports a few runtime options to tweak gesture detection and hand p
 - Default: 5
 - Pros: Larger values improve stability and reduce false positives.
 - Cons: Too large may delay gesture recognition slightly.
-
-**--gesture-threshold T**
-
-- Description: Minimum normalized movement required to recognize a swipe.
-- Default: 0.1
-- Pros: Increasing reduces accidental gestures caused by small jitters.
-- Cons: Setting too high may make gestures harder to trigger.
 
 **--consumer [stdout|http]**
 

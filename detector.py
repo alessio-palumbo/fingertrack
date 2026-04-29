@@ -1,11 +1,10 @@
 from collections import deque
 from dataclasses import dataclass
-from typing import Literal
 
 from tracker import HandLabel
 
 
-@dataclass
+@dataclass(frozen=True)
 class Pointer:
     """
     Represents a normalized 2D pointer derived from hand landmarks.
@@ -41,6 +40,8 @@ class FingersDetector:
     This class consumes hand landmark data (e.g., from HandTracker) and provides
     detection of which fingers are up for a given hand
     """
+
+    WRIST = 0
 
     THUMB_PIP = 3
     THUMB_TIP = 4
@@ -135,51 +136,9 @@ class FingersDetector:
             palm = landmarks.landmark[self.PALM_CENTER]
             return Pointer(palm.x, palm.y)
 
-        return None
-
-
-class GestureDetector:
-    def process_hand(self, landmarks, hand_label) -> str | None:
-        raise NotImplementedError
-
-
-class SwipeGestureDetector(GestureDetector):
-    def __init__(self, buffer_size=5, threshold=0.1):
-        """
-        Detect a swipe gesture for movement normalized to [0,1] when past the threshold
-        """
-
-        self.buffer_size = buffer_size
-        self.threshold = threshold
-        self.history: dict[HandLabel, deque] = {
-            "Left": deque(maxlen=buffer_size),
-            "Right": deque(maxlen=buffer_size),
-        }
-
-    def process_hand(self, landmarks, hand_label) -> str | None:
-        """
-        Process a single hand gesture by comparing wrist offsets
-        """
-
-        wrist = landmarks.landmark[0]
-        self.history[hand_label].append((wrist.x, wrist.y))
-
-        if len(self.history[hand_label]) < self.buffer_size:
-            return None
-
-        x0, y0 = self.history[hand_label][0]
-        x1, y1 = self.history[hand_label][-1]
-
-        dx = x1 - x0
-        dy = y1 - y0
-
-        # Horizontal dominates
-        if abs(dx) > abs(dy):
-            if abs(dx) > self.threshold:
-                return "swipe_right" if dx > 0 else "swipe_left"
-        else:
-            # Vertical dominates
-            if abs(dy) > self.threshold:
-                return "swipe_down" if dy > 0 else "swipe_up"
+        # Closed hand → wrist
+        if fingers == (0, 0, 0, 0, 0):
+            wrist = landmarks.landmark[self.WRIST]
+            return Pointer(wrist.x, wrist.y)
 
         return None

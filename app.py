@@ -44,12 +44,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--buffer-size", type=int, default=5, help="Number of frames to buffer"
     )
-    parser.add_argument(
-        "--gesture-threshold",
-        type=float,
-        default=0.1,
-        help="Gesture detection threshold",
-    )
 
     args = parser.parse_args()
     return args
@@ -86,7 +80,6 @@ def main():
         - --preview-mode: display live camera feed (full camera or landmarks-only mode)
         - --frame-skip: number of frames to skip between processing
         - --buffer-size: number of frames to buffer for detection smoothing
-        - --gesture-threshold: minimum movement required to detect a gesture
 
     Example usage:
         python main.py --consumer stdout --preview-mode full --gesture-buffer 5
@@ -99,7 +92,6 @@ def main():
     hand_engine = HandEngine(
         frame_skip=args.frame_skip,
         buffer_size=args.buffer_size,
-        gesture_threshold=args.gesture_threshold,
         consumers=get_consumers(args),
     )
 

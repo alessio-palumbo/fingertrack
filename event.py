@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from detector import Pointer
-from estimator import Motion
+from motion import Motion
 from tracker import HandLabel
 
 

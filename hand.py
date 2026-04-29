@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 
+from interpreter import GestureEngine
+
 from consumer import BaseConsumer
-from detector import FingersDetector, SwipeGestureDetector
-from estimator import MotionEstimator
+from detector import FingersDetector
 from event import HandEvent, HandState
+from motion import MotionEstimator
 from tracker import HandLabel, HandTracker
 
 
@@ -24,24 +26,21 @@ class HandEngine:
       - Dispatch events to registered consumers
     """
 
+    _MOTION_BUFFER_SIZE = 3
+
     def __init__(
         self,
         buffer_size: int = 5,
         frame_skip: int = 1,
         consumers: list[BaseConsumer] | None = None,
-        gesture_threshold: float = 0.1,
+        gesture_engine: GestureEngine | None = None,
     ):
         self.buffer_size = buffer_size
-        self.gesture_threshold = gesture_threshold
         self.frame_skip = frame_skip
         self.hand_tracker = HandTracker()
         self.fingers_detector = FingersDetector(buffer_size=buffer_size)
-        self.gesture_detector = SwipeGestureDetector(
-            buffer_size=buffer_size, threshold=gesture_threshold
-        )
-        self.motion_estimator = MotionEstimator(
-            buffer_size=buffer_size,
-        )
+        self.gesture_engine = gesture_engine or GestureEngine()
+        self.motion_estimator = MotionEstimator(buffer_size=self._MOTION_BUFFER_SIZE)
         self.consumers = consumers or []
         self.frame_mod = 0
         self.last_hand: dict[HandLabel, Hand | None] = {
@@ -62,6 +61,8 @@ class HandEngine:
         hands_data = self.hand_tracker.detect(frame)
 
         any_change = False
+        any_gesture = False
+
         hand_event = HandEvent(
             hands=[],
             frame=frame,
@@ -70,8 +71,8 @@ class HandEngine:
         for landmarks, hand_label in hands_data:
             stable_fingers = self.fingers_detector.process_hand(landmarks, hand_label)
             pointer = self.fingers_detector.resolve_pointer(landmarks, stable_fingers)
-            gesture = self.gesture_detector.process_hand(landmarks, hand_label)
             motion = self.motion_estimator.update(hand_label, pointer)
+            gesture = self.gesture_engine.process(motion, hand_label)
 
             hand_event.hands.append(
                 HandState(
@@ -89,6 +90,11 @@ class HandEngine:
                 any_change = True
             self.last_hand[hand_label] = hand
 
+            if gesture:
+                any_gesture = True
+
+        should_emit = any_change or any_gesture
+
         for consumer in self.consumers:
-            if consumer.always_consume or any_change:
+            if consumer.always_consume or should_emit:
                 consumer.consume(hand_event)
