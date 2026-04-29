@@ -115,30 +115,45 @@ class FingersDetector:
 
     def resolve_pointer(self, landmarks, fingers) -> Pointer | None:
         """
-        Returns (x, y, source) or None
+        Resolve pointer dynamically based on extended fingers.
+
+        Rules:
+        - 0 fingers → wrist
+        - 1 finger → that fingertip
+        - 2+ fingers → centroid of extended fingers
+        - open hand → ignore thumb for stability
         """
 
-        # One finger → index tip
-        if fingers == (0, 1, 0, 0, 0):
-            tip = landmarks.landmark[self.INDEX_TIP]
-            return Pointer(tip.x, tip.y)
+        tips_map = [
+            (0, self.THUMB_TIP),
+            (1, self.INDEX_TIP),
+            (2, self.MIDDLE_TIP),
+            (3, self.RING_TIP),
+            (4, self.PINKY_TIP),
+        ]
 
-        # Two fingers → midpoint (index + middl tipse)
-        if fingers == (0, 1, 1, 0, 0):
-            i = landmarks.landmark[self.INDEX_TIP]
-            m = landmarks.landmark[self.MIDDLE_TIP]
-            x = (i.x + m.x) / 2
-            y = (i.y + m.y) / 2
-            return Pointer(x, y)
+        extended = [landmarks.landmark[idx] for i, idx in tips_map if fingers[i] == 1]
 
-        # Open hand → palm cente
-        if fingers == (1, 1, 1, 1, 1):
-            palm = landmarks.landmark[self.PALM_CENTER]
-            return Pointer(palm.x, palm.y)
-
-        # Closed hand → wrist
-        if fingers == (0, 0, 0, 0, 0):
+        # No fingers → wrist
+        if not extended:
             wrist = landmarks.landmark[self.WRIST]
             return Pointer(wrist.x, wrist.y)
 
-        return None
+        # One finger → direct pointer
+        if len(extended) == 1:
+            tip = extended[0]
+            return Pointer(tip.x, tip.y)
+
+        # Open hand → ignore thumb if all fingers extended
+        if sum(fingers) >= 4 and fingers[0] == 1:
+            extended = [
+                landmarks.landmark[idx]
+                for i, idx in tips_map
+                if i != 0 and fingers[i] == 1  # exclude thumb
+            ]
+
+        # Centroid of extended fingers
+        x = sum(p.x for p in extended) / len(extended)
+        y = sum(p.y for p in extended) / len(extended)
+
+        return Pointer(x, y)
